@@ -3,18 +3,22 @@ import axios from 'axios';
 import { CONFIG } from './analysisConfig.js';
 
 class LLMService {
-    static async analyzeCode(prompt, timeout = CONFIG.TIMEOUTS.ANALYSIS) {
+    static async analyzeCode(prompt, mode = 'standard') {
+        const timeout = mode === 'kt' ? CONFIG.TIMEOUTS.KT_ANALYSIS : CONFIG.TIMEOUTS.ANALYSIS;
+        const maxTokens = mode === 'kt' ? CONFIG.LLM.KT_MAX_TOKENS : CONFIG.LLM.MAX_TOKENS;
+
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
         try {
-            console.log('Sending request to LLM with prompt:', prompt.substring(0, 100) + '...');
+            console.log(`Sending ${mode} analysis request to LLM...`);
             const response = await axios.post(
                 CONFIG.LLM.ENDPOINT,
                 {
                     model: CONFIG.LLM.MODEL,
                     prompt,
-                    stream: false
+                    stream: false,
+                    max_tokens: maxTokens
                 },
                 {
                     headers: { 'Content-Type': 'application/json' },
@@ -23,22 +27,21 @@ class LLMService {
                 }
             );
             clearTimeout(timeoutId);
-            console.log('Received LLM response:', response.data.response);
             return response.data.response;
         } catch (error) {
             clearTimeout(timeoutId);
             if (axios.isCancel(error)) {
-                throw new Error('Analysis timeout');
+                throw new Error(`Analysis timeout (${mode} mode)`);
             }
-            throw new Error(`LLM Analysis failed: ${error.message}`);
+            throw new Error(`LLM Analysis failed (${mode} mode): ${error.message}`);
         }
     }
 
-    static async retryAnalysis(prompt, maxAttempts = CONFIG.RETRIES.MAX_ATTEMPTS) {
+    static async retryAnalysis(prompt, mode = 'standard', maxAttempts = CONFIG.RETRIES.MAX_ATTEMPTS) {
         let lastError;
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-                const result = await this.analyzeCode(prompt);
+                const result = await this.analyzeCode(prompt, mode);
                 return result;
             } catch (error) {
                 lastError = error;

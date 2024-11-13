@@ -120,6 +120,7 @@ const MainApp = () => {
 
   const handleAnalysisSelect = async (analysis: any) => {
     try {
+      console.log('Received analysis:', analysis); // Add logging
       setSelectedAnalysis(null);
       setSelectedFile(null);
 
@@ -129,6 +130,7 @@ const MainApp = () => {
         path: `${analysis.repository}/${item.fileName}`,
       }));
 
+      // First set the analysis
       setSelectedAnalysis({
         results: analysis.analyses.map((item: any) => ({
           type: 'success',
@@ -159,15 +161,67 @@ const MainApp = () => {
         }))
       });
 
+      // Then set the initial file with its analysis
       if (analysis.analyses.length > 0) {
+        const initialFile = analysis.analyses[0];
         setSelectedFile({
-          name: analysis.analyses[0].fileName,
-          content: '',
-          analysis: analysis.analyses[0].analysis
+          name: initialFile.fileName,
+          content: '', // Content will be fetched when needed
+          analysis: initialFile.analysis
         });
       }
     } catch (error) {
       console.error('Failed to process analysis:', error);
+    }
+  };
+
+
+  const [ktDocumentation, setKTDocumentation] = useState(null);
+
+  const handleKTSelect = (ktData: any) => {
+    try {
+      setSelectedAnalysis(null);
+      setSelectedFile(null);
+
+      const formattedFiles: FileNode[] = ktData.analyses.map((item: any) => ({
+        name: item.fileName,
+        type: 'file',
+        path: `${ktData.repository}/${item.fileName}`,
+      }));
+
+      setSelectedAnalysis({
+        results: ktData.analyses.map((item: any) => ({
+          type: 'success',
+          message: item.analysis,
+          file: item.fileName
+        })),
+        files: formattedFiles,
+        codeReview: {
+          issues: ktData.analyses.map((item: any) => ({
+            severity: 'medium',
+            file: item.fileName,
+            description: item.analysis,
+            suggestion: ''
+          }))
+        },
+        codeExplanation: {
+          summary: ktData.documentation.generatedDocs,
+          keyComponents: ktData.analyses.map((item: any) => ({
+            name: item.fileName,
+            purpose: `Analysis of ${item.fileType} file`
+          }))
+        },
+        issues: ktData.analyses.map((item: any) => ({
+          type: 'improvement',
+          description: item.analysis,
+          solution: '',
+          priority: 'medium'
+        }))
+      });
+
+      setKTDocumentation(ktData.documentation);
+    } catch (error) {
+      console.error('Failed to process KT analysis:', error);
     }
   };
 
@@ -189,19 +243,27 @@ const MainApp = () => {
 
       const data = await response.json();
 
-      // Find the analysis for this file from selectedAnalysis
-      const fileAnalysis = selectedAnalysis?.results.find(
-        result => result.file === file.name
-      )?.message || '';
+      // Find the matching analysis from selectedAnalysis.codeReview.issues
+      const fileAnalysis = selectedAnalysis?.codeReview.issues.find(
+        issue => issue.file === file.name
+      );
 
       setSelectedFile({
         name: file.name,
         content: data.content,
-        analysis: fileAnalysis
+        analysis: fileAnalysis?.description || 'No analysis available for this file'
       });
     } catch (error) {
       console.error("Error fetching file content:", error);
     }
+  };
+
+
+
+  const handleContentUpdate = async (fileName: string, newContent: string) => {
+    // Here you could add logic to save the updated content
+    console.log(`Updating content for ${fileName}`);
+    // You might want to add an API endpoint to save the changes
   };
 
 
@@ -247,7 +309,10 @@ const MainApp = () => {
               {/* File Viewer */}
               <div className="md:col-span-1 bg-white rounded-lg shadow">
                 {selectedFile && (
-                  <FileViewerWithAnalysis files={[selectedFile]} />
+                  <FileViewerWithAnalysis
+                    files={[selectedFile]}
+                    onContentUpdate={handleContentUpdate}
+                  />
                 )}
               </div>
 
@@ -275,6 +340,7 @@ const MainApp = () => {
                 full_name: `${repo.owner.login}/${repo.name}`
               }}
               onSelect={handleAnalysisSelect}
+              onKTSelect={handleKTSelect}
             />
           ))}
         </div>

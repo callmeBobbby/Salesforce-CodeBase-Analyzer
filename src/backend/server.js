@@ -23,10 +23,21 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Add this near the top of server.js after middleware setup
+// Reusable SSE function
+function sendEventToClient(res, event, data) {
+  const payload = { event, data };
+  const eventString = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+  console.log('Sending SSE event:', {
+    eventType: event,
+    payload: payload,
+    rawString: eventString
+  });
+  res.write(eventString);
+}
+
+// Keep-alive middleware
 app.use((req, res, next) => {
-  if (req.url === '/api/analyze') {
-    // Send a ping every 30 seconds to keep the connection alive
+  if (req.url === '/api/analyze' || req.url === '/api/analyze/kt') {
     const pingInterval = setInterval(() => {
       if (!res.finished) {
         res.write(':\n\n');
@@ -35,14 +46,12 @@ app.use((req, res, next) => {
       }
     }, 30000);
 
-    // Clean up interval on connection close
     res.on('close', () => {
       clearInterval(pingInterval);
     });
   }
   next();
 });
-
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -116,12 +125,10 @@ app.post('/api/auth/github', async (req, res) => {
 });
 
 // Analysis endpoint
-// Inside the /api/analyze endpoint in server.js
 app.post('/api/analyze', async (req, res) => {
   const { repoName } = req.body;
   const authHeader = req.headers.authorization;
 
-  // Set up SSE with proper headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -130,42 +137,29 @@ app.post('/api/analyze', async (req, res) => {
     'Access-Control-Allow-Credentials': 'true'
   });
 
-  function sendEvent(event, data) {
-    const payload = { event, data };
-    const eventString = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
-    console.log('Sending SSE event:', {
-      eventType: event,
-      payload: payload,
-      rawString: eventString
-    });
-    res.write(eventString);
-  }
-
-
-
   try {
     const cacheKey = `repo-${repoName}`;
     const cachedResult = analysisCache.get(cacheKey);
     if (cachedResult) {
-      sendEvent('complete', cachedResult);
+      sendEventToClient(res, 'complete', cachedResult);
       return res.end();
     }
 
-    sendEvent('status', 'Starting analysis...');
+    sendEventToClient(res, 'status', 'Starting analysis...');
     const files = await fetchRepoContents(repoName, authHeader);
 
-    sendEvent('status', 'Processing Salesforce files...');
+    sendEventToClient(res, 'status', 'Processing Salesforce files...');
     const salesforceFiles = await getSalesforceFiles(files, authHeader);
 
     if (!salesforceFiles.length) {
-      sendEvent('error', 'No Salesforce files found');
+      sendEventToClient(res, 'error', 'No Salesforce files found');
       return res.end();
     }
 
     const analysisResults = [];
     for (const fileInfo of salesforceFiles) {
       try {
-        sendEvent('status', `Analyzing ${fileInfo.name}...`);
+        sendEventToClient(res, 'status', `Analyzing ${fileInfo.name}...`);
         const response = await axios.get(fileInfo.download_url, {
           headers: {
             Authorization: authHeader,
@@ -187,14 +181,14 @@ app.post('/api/analyze', async (req, res) => {
         console.log(`Analysis result for ${file.name}:`, result);
         analysisResults.push(result);
 
-        sendEvent('progress', {
+        sendEventToClient(res, 'progress', {
           file: file.name,
           status: 'completed',
           analysis: result.analysis
         });
       } catch (error) {
         console.error(`Failed to process ${fileInfo.name}:`, error);
-        sendEvent('error', {
+        sendEventToClient(res, 'error', {
           file: fileInfo.name,
           error: error.message
         });
@@ -206,12 +200,11 @@ app.post('/api/analyze', async (req, res) => {
     }
 
     console.log('Generating codebase overview...');
-    sendEvent('status', 'Generating codebase overview...');
+    sendEventToClient(res, 'status', 'Generating codebase overview...');
 
     const overview = await LLMService.retryAnalysis(
       createAnalysisPrompt('codebase', analysisResults)
     );
-    console.log('Codebase overview:', overview);
 
     const finalResult = {
       repository: repoName,
@@ -221,49 +214,142 @@ app.post('/api/analyze', async (req, res) => {
     };
 
     console.log('Final analysis result:', finalResult);
-    analysisCache.set(repoName, finalResult);
+    analysisCache.set(cacheKey, finalResult);
 
-    sendEvent('complete', finalResult);
-    res.end();
-
+    sendEventToClient(res, 'complete', finalResult);
   } catch (error) {
     console.error('Analysis error:', error);
-    sendEvent('error', {
+    sendEventToClient(res, 'error', {
       message: error.message,
       type: 'system_error'
     });
+  } finally {
     res.end();
   }
 });
 
+// KT Analysis endpoint
+app.post('/api/analyze/kt', async (req, res) => {
+  const { repoName } = req.body;
+  const authHeader = req.headers.authorization;
 
-// Helper functions
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': 'http://localhost:5173',
+    'Access-Control-Allow-Credentials': 'true'
+  });
+
+  try {
+    const files = await fetchRepoContents(repoName, authHeader);
+    const salesforceFiles = await getSalesforceFiles(files, authHeader);
+
+    sendEventToClient(res, 'status', 'Generating KT documentation...');
+
+    const ktAnalysis = {
+      codebase: {
+        structure: {},
+        patterns: [],
+        conventions: []
+      },
+      onboarding: {
+        quickStart: [],
+        commonTasks: [],
+        troubleshooting: []
+      },
+      technical: {
+        architecture: {},
+        dependencies: [],
+        integrations: []
+      },
+      business: {
+        processes: [],
+        rules: [],
+        domains: []
+      }
+    };
+
+    for (const fileInfo of salesforceFiles) {
+      try {
+        sendEventToClient(res, 'status', `Analyzing ${fileInfo.name}...`);
+        const response = await axios.get(fileInfo.download_url, {
+          headers: {
+            Authorization: authHeader,
+            Accept: 'application/vnd.github.v3.raw'
+          }
+        });
+
+        const file = {
+          name: fileInfo.name,
+          content: response.data,
+          path: fileInfo.path
+        };
+
+        const fileType = getFileType(file.name);
+        const analysis = await jobProcessor.addJob({
+          file,
+          type: fileType,
+          mode: 'kt'
+        });
+
+        categorizeAnalysis(analysis, ktAnalysis);
+
+        sendEventToClient(res, 'progress', {
+          file: file.name,
+          status: 'completed',
+          analysis: analysis.analysis
+        });
+      } catch (error) {
+        console.error(`Failed to process ${fileInfo.name}:`, error);
+        sendEventToClient(res, 'error', {
+          file: fileInfo.name,
+          error: error.message
+        });
+      }
+    }
+
+    const documentation = await generateDocumentation(ktAnalysis);
+
+    sendEventToClient(res, 'complete', {
+      ktAnalysis,
+      documentation,
+      quickStart: {
+        setup: documentation.setup,
+        firstSteps: documentation.workflows.development.slice(0, 3)
+      }
+    });
+  } catch (error) {
+    console.error('KT Analysis error:', error);
+    sendEventToClient(res, 'error', {
+      message: error.message,
+      type: 'kt_analysis_error'
+    });
+  } finally {
+    res.end();
+  }
+});
+
 async function fetchRepoContents(repoName, authHeader, path = '') {
   console.log('Fetching repository contents for path:', path);
 
-  const response = await axios.get(
-    `https://api.github.com/repos/${repoName}/contents/${path}`,
-    {
-      headers: {
-        Authorization: authHeader,
-        Accept: 'application/vnd.github.v3+json'
+  try {
+    const response = await axios.get(
+      `https://api.github.com/repos/${repoName}/contents/${path}`,
+      {
+        headers: {
+          Authorization: authHeader,
+          Accept: 'application/vnd.github.v3+json'
+        }
       }
-    }
-  );
-
-  let allContents = [];
-  for (const item of response.data) {
-    if (item.type === 'dir') {
-      console.log('Entering directory:', item.path);
-      const subContents = await fetchRepoContents(repoName, authHeader, item.path);
-      allContents = allContents.concat(subContents);
-    } else {
-      console.log('File found:', item.name);
-      allContents.push(item);
-    }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching repo contents:', error);
+    throw new Error(`Failed to fetch repository contents: ${error.message}`);
   }
-  return allContents;
 }
+
 
 async function getSalesforceFiles(contents, authHeader) {
   console.log('Filtering files for Salesforce extensions...');
@@ -274,7 +360,6 @@ async function getSalesforceFiles(contents, authHeader) {
     )
   );
 }
-
 
 function getFileType(fileName) {
   const extensions = {
@@ -291,29 +376,116 @@ function getFileType(fileName) {
   return extensions[ext] || 'unknown';
 }
 
-// In server.js, add this function with the other helper functions
 function createAnalysisPrompt(type, data) {
   if (type === 'codebase') {
-    return `As a development expert, analyze this codebase:
-
-Files to analyze:
-${data.map(file => `
-File: ${file.fileName}
-Type: ${file.fileType}
-Analysis: ${file.analysis}
-`).join('\n')}
-
-Please provide a comprehensive overview covering:
-1. Overall Architecture
-2. Code Quality
-3. Performance Considerations
-4. Security Analysis
-5. Best Practices
-6. Recommendations for Improvement`;
+    return `As a development expert, analyze this codebase for a new developer onboarding:
+  
+  Files to analyze:
+  ${data.map(file => `
+  File: ${file.fileName}
+  Type: ${file.fileType}
+  Analysis: ${file.analysis}
+  `).join('\n')}
+  
+  Please provide a comprehensive overview covering:
+  1. Overall Architecture
+     - System components and their interactions
+     - Key design patterns used
+     - Integration points
+  
+  2. Developer Onboarding Guide
+     - Getting started steps
+     - Development environment setup
+     - Key files and their purposes
+     - Important configurations
+  
+  3. Business Logic Overview
+     - Core business processes
+     - Critical workflows
+     - Important business rules
+  
+  4. Technical Dependencies
+     - External systems
+     - Third-party integrations
+     - API dependencies
+  
+  5. Best Practices & Conventions
+     - Coding standards followed
+     - Naming conventions
+     - Project-specific patterns
+  
+  6. Common Development Scenarios
+     - Typical development tasks
+     - Debug points
+     - Testing approaches
+  
+  7. Performance & Security Considerations
+     - Critical performance areas
+     - Security checkpoints
+     - Data handling practices`;
   }
   return '';
 }
 
+async function generateDocumentation(fileAnalysis) {
+  const docTemplate = {
+    setup: {
+      environment: [],
+      dependencies: [],
+      configurations: []
+    },
+    workflows: {
+      development: [],
+      testing: [],
+      deployment: []
+    },
+    architecture: {
+      components: [],
+      integrations: [],
+      dataFlow: []
+    },
+    businessLogic: {
+      processes: [],
+      rules: [],
+      validations: []
+    }
+  };
+
+  // Generate structured documentation
+  const documentation = await LLMService.retryAnalysis(`
+      Based on the following codebase analysis, generate developer onboarding documentation:
+      ${JSON.stringify(fileAnalysis)}
+      
+      Focus on:
+      1. Setup instructions
+      2. Development workflows
+      3. Architecture overview
+      4. Business logic documentation
+    `);
+
+  return {
+    ...docTemplate,
+    generatedDocs: documentation
+  };
+}
+
+function categorizeAnalysis(fileAnalysis, ktAnalysis) {
+  // Categorize file-level analysis into different KT sections
+  const categories = {
+    SETUP: ['configuration', 'environment', 'dependency'],
+    WORKFLOW: ['process', 'flow', 'pipeline'],
+    BUSINESS: ['rule', 'validation', 'calculation'],
+    INTEGRATION: ['api', 'service', 'connection']
+  };
+
+  for (const [category, keywords] of Object.entries(categories)) {
+    if (keywords.some(keyword =>
+      fileAnalysis.analysis.toLowerCase().includes(keyword)
+    )) {
+      ktAnalysis[category.toLowerCase()].push(fileAnalysis);
+    }
+  }
+}
 
 // Error handling middleware
 app.use((error, req, res, next) => {
@@ -329,6 +501,3 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
-
-
-
