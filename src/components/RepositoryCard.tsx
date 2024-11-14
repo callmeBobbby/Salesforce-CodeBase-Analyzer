@@ -30,6 +30,7 @@ export function RepositoryCard({ repo, onSelect }: RepositoryCardProps) {
   const [error, setError] = useState<string | null>(null);
   const { token } = useAuthStore();
 
+
   const handleKTAnalyze = async () => {
     setIsGeneratingKT(true);
     setError(null);

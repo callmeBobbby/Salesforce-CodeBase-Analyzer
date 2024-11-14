@@ -13,6 +13,8 @@ import { CodeReview, CodeExplanation, DetectedIssue } from './components/Analysi
 import { AnalysisDetails } from './components/AnalysisDetails';
 import { Analysis } from './components/AnalysisResults';
 import { FileViewerWithAnalysis } from './components/FileViewerWithAnalysis';
+import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+
 
 interface GitHubRepository {
   id: number;
@@ -61,6 +63,7 @@ const MainApp = () => {
   const [repositories, setRepositories] = useState<GitHubRepository[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isAnalysisCollapsed, setIsAnalysisCollapsed] = useState(true); // Collapsible state for AnalysisDetails
   const [selectedAnalysis, setSelectedAnalysis] = useState<{
     results: Analysis[];
     files: FileNode[];
@@ -117,6 +120,10 @@ const MainApp = () => {
 
     validateTokenAndFetchRepos();
   }, [token, logout]);
+
+  const toggleAnalysisCollapse = () => {
+    setIsAnalysisCollapsed(!isAnalysisCollapsed);
+  };
 
   const handleAnalysisSelect = async (analysis: any) => {
     try {
@@ -258,6 +265,34 @@ const MainApp = () => {
     }
   };
 
+  const handleCustomAnalysis = async (fileName: string, prompt: string) => {
+    try {
+      const fileContent = selectedFile?.content || '';
+      const response = await fetch('http://localhost:5000/api/analyze/custom', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `token ${token}`,
+        },
+        body: JSON.stringify({
+          fileName,
+          content: fileContent,
+          prompt
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Custom analysis failed');
+      }
+
+      const data = await response.json();
+      return data.analysis;
+    } catch (error) {
+      console.error('Custom analysis error:', error);
+      return null;
+    }
+  };
+
 
 
   const handleContentUpdate = async (fileName: string, newContent: string) => {
@@ -292,59 +327,88 @@ const MainApp = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-full mx-auto px-2 sm:px-4 lg:px-4 py-8">
         <SearchBar onSearch={(query) => console.log('Search:', query)} />
 
         {selectedAnalysis && (
-          <div className="mb-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="mb-8 relative">
+            <div className="grid grid-cols-12 gap-4">
               {/* File Explorer */}
-              <div className="md:col-span-1 bg-white rounded-lg shadow">
-                <FileExplorer
-                  files={selectedAnalysis.files}
-                  onFileSelect={handleFileSelect}
-                />
+              <div className="col-span-12 md:col-span-2 bg-white rounded-lg shadow p-4 overflow-hidden h-full">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Files</h3>
+                <FileExplorer files={selectedAnalysis.files} onFileSelect={handleFileSelect} />
               </div>
 
               {/* File Viewer */}
-              <div className="md:col-span-1 bg-white rounded-lg shadow">
+              <div
+                className={`transition-all duration-300 bg-white rounded-lg shadow ${isAnalysisCollapsed ? 'col-span-10' : 'col-span-6'} h-full`}
+              >
                 {selectedFile && (
                   <FileViewerWithAnalysis
                     files={[selectedFile]}
                     onContentUpdate={handleContentUpdate}
+                    onCustomAnalysis={handleCustomAnalysis}
                   />
                 )}
               </div>
 
-              {/* Analysis Details */}
-              <div className="md:col-span-1 bg-white rounded-lg shadow">
-                <AnalysisDetails analysis={selectedAnalysis} />
-                {/* <AnalysisResults results={selectedAnalysis.results} /> */}
-              </div>
+              {/* Analysis Details Sidebar */}
+              {!isAnalysisCollapsed && (
+                <div
+                  className="transition-all duration-300 col-span-4 bg-white rounded-lg shadow h-full relative"
+                >
+                  <div className="h-full overflow-y-auto p-4">
+                    {/* <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold">Analysis Details</h3>
+                    </div> */}
+                    <AnalysisDetails analysis={selectedAnalysis} />
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Toggle Button Fixed to the Right */}
+            <button
+              onClick={toggleAnalysisCollapse}
+              className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white p-2 rounded-lg shadow-lg hover:bg-gray-100 z-10"
+              aria-label={isAnalysisCollapsed ? 'Expand Analysis' : 'Collapse Analysis'}
+            >
+              {isAnalysisCollapsed ? (
+                <ChevronLeftIcon className="h-6 w-6 text-gray-600" />
+              ) : (
+                <ChevronRightIcon className="h-6 w-6 text-gray-600" />
+              )}
+            </button>
           </div>
         )}
 
-
-
         {/* Repository Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
-          {Array.isArray(repositories) && repositories.map((repo) => (
-            <RepositoryCard
-              key={repo.id}
-              repo={{
-                name: repo.name,
-                description: repo.description || '',
-                stars: repo.stargazers_count,
-                default_branch: repo.default_branch,
-                full_name: `${repo.owner.login}/${repo.name}`
-              }}
-              onSelect={handleAnalysisSelect}
-              onKTSelect={handleKTSelect}
-            />
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8 h-full">
+          {Array.isArray(repositories) &&
+            repositories.map((repo) => (
+              <div className="h-full">
+                <RepositoryCard
+                  key={repo.id}
+                  repo={{
+                    name: repo.name,
+                    description: repo.description || '',
+                    stars: repo.stargazers_count,
+                    default_branch: repo.default_branch,
+                    full_name: `${repo.owner.login}/${repo.name}`
+                  }}
+                  onSelect={handleAnalysisSelect}
+                  onKTSelect={handleKTSelect}
+                />
+              </div>
+            ))}
         </div>
       </main>
     </div>
   );
+
+
+
+
+
+
 };

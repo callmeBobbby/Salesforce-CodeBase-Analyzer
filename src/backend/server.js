@@ -61,7 +61,7 @@ app.use((req, res, next) => {
 
 // Root route
 app.get('/', (req, res) => {
-  console.log('Received request at root route');
+  console.log('Received request at root route', req);
   res.json({ status: 'ok', message: 'Salesforce Code Analyzer API' });
 });
 
@@ -202,9 +202,14 @@ app.post('/api/analyze', async (req, res) => {
     console.log('Generating codebase overview...');
     sendEventToClient(res, 'status', 'Generating codebase overview...');
 
+    console.log('overview prompt: ', createAnalysisPrompt('codebase', analysisResults));
+
+
     const overview = await LLMService.retryAnalysis(
       createAnalysisPrompt('codebase', analysisResults)
     );
+
+    console.log('overview: ', overview);
 
     const finalResult = {
       repository: repoName,
@@ -330,6 +335,21 @@ app.post('/api/analyze/kt', async (req, res) => {
   }
 });
 
+app.post('/api/analyze/custom', async (req, res) => {
+  const { fileName, content, prompt } = req.body;
+
+  try {
+    const result = await jobProcessor.analyzeWithCustomPrompt(fileName, content, prompt);
+    console.log('custom prompt result: ', result)
+    res.json({ analysis: result });
+  } catch (error) {
+    console.error('Custom analysis error:', error);
+    res.status(500).json({ error: 'Custom analysis failed' });
+  }
+});
+
+
+
 async function fetchRepoContents(repoName, authHeader, path = '') {
   console.log('Fetching repository contents for path:', path);
 
@@ -387,42 +407,14 @@ function createAnalysisPrompt(type, data) {
   Analysis: ${file.analysis}
   `).join('\n')}
   
-  Please provide a comprehensive overview covering:
-  1. Overall Architecture
-     - System components and their interactions
-     - Key design patterns used
-     - Integration points
-  
-  2. Developer Onboarding Guide
-     - Getting started steps
-     - Development environment setup
-     - Key files and their purposes
-     - Important configurations
-  
-  3. Business Logic Overview
-     - Core business processes
-     - Critical workflows
-     - Important business rules
-  
-  4. Technical Dependencies
-     - External systems
-     - Third-party integrations
-     - API dependencies
-  
-  5. Best Practices & Conventions
-     - Coding standards followed
-     - Naming conventions
-     - Project-specific patterns
-  
-  6. Common Development Scenarios
-     - Typical development tasks
-     - Debug points
-     - Testing approaches
-  
-  7. Performance & Security Considerations
-     - Critical performance areas
-     - Security checkpoints
-     - Data handling practices`;
+Please provide a comprehensive overview covering:
+1. Overall Architecture
+2. Code Quality
+3. Performance Considerations
+4. Security Analysis
+5. Best Practices
+6. Recommendations for Improvement`;
+
   }
   return '';
 }

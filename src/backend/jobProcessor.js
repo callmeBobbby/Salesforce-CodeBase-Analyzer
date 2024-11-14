@@ -75,6 +75,21 @@ class JobProcessor {
         }
     }
 
+    analyzeWithCustomPrompt(fileName, content, customPrompt) {
+        return LLMService.retryAnalysis(`
+            Analyze this Salesforce code based on the following prompt:
+            ${customPrompt}
+    
+            Code to analyze:
+            ${content}
+    
+            Provide technical and precise response focusing on:
+            - Specific code improvements
+            - Performance impact
+            - Implementation details
+        `);
+    }
+
     splitFileContent(content) {
         if (typeof content !== 'string') {
             console.error('Invalid content type:', typeof content);
@@ -104,14 +119,56 @@ class JobProcessor {
         return chunks;
     }
 
-    createPromptForChunk(chunk, fileType, fileName) {
+    /*createPromptForChunk(chunk, fileType, fileName) {
         return `Analyze this salesforce ${fileType} code from ${fileName}. Provide a concise analysis focusing on:
     1. Main functionality and purpose
     2. Critical issues and bugs
     3. Performance concerns
     4. Security considerations
     5. Best practices violations\n\n${chunk}`;
+    }*/
+
+    // jobProcessor.js
+    createPromptForChunk(chunk, fileType, fileName) {
+        return `Analyze this Salesforce ${fileType} code with technical precision:
+
+Technical Analysis Requirements:
+1. Code Structure & Quality
+   - Identify design patterns
+   - Code complexity assessment
+   - SOLID principles adherence
+
+2. Performance Optimization
+   - Query optimization
+   - Bulkification issues
+   - CPU/Memory considerations
+   - Governor limits impact
+
+3. Security Analysis
+   - CRUD/FLS compliance
+   - Injection vulnerabilities
+   - Sharing model issues
+
+4. Best Practices
+   - Salesforce recommended patterns
+   - Error handling improvements
+   - Test coverage recommendations
+
+5. Provide Optimized Code
+   - Include fixed/optimized version
+   - Comments explaining changes
+   - Performance impact estimates
+
+Code to analyze:
+${chunk}
+
+Response Format:
+- Keep analysis concise and technical
+- Prioritize critical issues
+- Include specific code fixes
+- Provide measurable improvements`;
     }
+
 
 
 
@@ -155,6 +212,8 @@ ${chunk}`;
         return this.processFile(data.file, data.type, data.mode || 'standard');
     }
 }
+
+
 
 export default new JobProcessor();
 
