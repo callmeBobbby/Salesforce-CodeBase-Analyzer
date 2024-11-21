@@ -13,6 +13,10 @@ import { CodeReview, CodeExplanation, DetectedIssue } from './components/Analysi
 import { AnalysisDetails } from './components/AnalysisDetails';
 import { Analysis } from './components/AnalysisResults';
 import { FileViewerWithAnalysis } from './components/FileViewerWithAnalysis';
+import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { Settings } from './components/Setting';
+import { SalesforceCallback } from './components/SalesforceCallback';
+
 
 interface GitHubRepository {
   id: number;
@@ -50,7 +54,9 @@ export const App = () => {
     <Router>
       <Routes>
         <Route path="/callback" element={<Callback />} />
+        <Route path="/salesforce/callback" element={<SalesforceCallback />} />
         <Route path="/" element={<MainApp />} />
+        <Route path="/settings" element={<Settings />} /> {/* Add this route */}
       </Routes>
     </Router>
   );
@@ -61,6 +67,7 @@ const MainApp = () => {
   const [repositories, setRepositories] = useState<GitHubRepository[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isAnalysisCollapsed, setIsAnalysisCollapsed] = useState(true); // Collapsible state for AnalysisDetails
   const [selectedAnalysis, setSelectedAnalysis] = useState<{
     results: Analysis[];
     files: FileNode[];
@@ -118,8 +125,13 @@ const MainApp = () => {
     validateTokenAndFetchRepos();
   }, [token, logout]);
 
+  const toggleAnalysisCollapse = () => {
+    setIsAnalysisCollapsed(!isAnalysisCollapsed);
+  };
+
   const handleAnalysisSelect = async (analysis: any) => {
     try {
+      console.log('Received analysis:', analysis); // Add logging
       setSelectedAnalysis(null);
       setSelectedFile(null);
 
@@ -129,6 +141,7 @@ const MainApp = () => {
         path: `${analysis.repository}/${item.fileName}`,
       }));
 
+      // First set the analysis
       setSelectedAnalysis({
         results: analysis.analyses.map((item: any) => ({
           type: 'success',
@@ -159,15 +172,67 @@ const MainApp = () => {
         }))
       });
 
+      // Then set the initial file with its analysis
       if (analysis.analyses.length > 0) {
+        const initialFile = analysis.analyses[0];
         setSelectedFile({
-          name: analysis.analyses[0].fileName,
-          content: '',
-          analysis: analysis.analyses[0].analysis
+          name: initialFile.fileName,
+          content: '', // Content will be fetched when needed
+          analysis: initialFile.analysis
         });
       }
     } catch (error) {
       console.error('Failed to process analysis:', error);
+    }
+  };
+
+
+  const [ktDocumentation, setKTDocumentation] = useState(null);
+
+  const handleKTSelect = (ktData: any) => {
+    try {
+      setSelectedAnalysis(null);
+      setSelectedFile(null);
+
+      const formattedFiles: FileNode[] = ktData.analyses.map((item: any) => ({
+        name: item.fileName,
+        type: 'file',
+        path: `${ktData.repository}/${item.fileName}`,
+      }));
+
+      setSelectedAnalysis({
+        results: ktData.analyses.map((item: any) => ({
+          type: 'success',
+          message: item.analysis,
+          file: item.fileName
+        })),
+        files: formattedFiles,
+        codeReview: {
+          issues: ktData.analyses.map((item: any) => ({
+            severity: 'medium',
+            file: item.fileName,
+            description: item.analysis,
+            suggestion: ''
+          }))
+        },
+        codeExplanation: {
+          summary: ktData.documentation.generatedDocs,
+          keyComponents: ktData.analyses.map((item: any) => ({
+            name: item.fileName,
+            purpose: `Analysis of ${item.fileType} file`
+          }))
+        },
+        issues: ktData.analyses.map((item: any) => ({
+          type: 'improvement',
+          description: item.analysis,
+          solution: '',
+          priority: 'medium'
+        }))
+      });
+
+      setKTDocumentation(ktData.documentation);
+    } catch (error) {
+      console.error('Failed to process KT analysis:', error);
     }
   };
 
@@ -189,19 +254,55 @@ const MainApp = () => {
 
       const data = await response.json();
 
-      // Find the analysis for this file from selectedAnalysis
-      const fileAnalysis = selectedAnalysis?.results.find(
-        result => result.file === file.name
-      )?.message || '';
+      // Find the matching analysis from selectedAnalysis.codeReview.issues
+      const fileAnalysis = selectedAnalysis?.codeReview.issues.find(
+        issue => issue.file === file.name
+      );
 
       setSelectedFile({
         name: file.name,
         content: data.content,
-        analysis: fileAnalysis
+        analysis: fileAnalysis?.description || 'No analysis available for this file'
       });
     } catch (error) {
       console.error("Error fetching file content:", error);
     }
+  };
+
+  const handleCustomAnalysis = async (fileName: string, prompt: string) => {
+    try {
+      const fileContent = selectedFile?.content || '';
+      const response = await fetch('http://localhost:5000/api/analyze/custom', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `token ${token}`,
+        },
+        body: JSON.stringify({
+          fileName,
+          content: fileContent,
+          prompt
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Custom analysis failed');
+      }
+
+      const data = await response.json();
+      return data.analysis;
+    } catch (error) {
+      console.error('Custom analysis error:', error);
+      return null;
+    }
+  };
+
+
+
+  const handleContentUpdate = async (fileName: string, newContent: string) => {
+    // Here you could add logic to save the updated content
+    console.log(`Updating content for ${fileName}`);
+    // You might want to add an API endpoint to save the changes
   };
 
 
@@ -228,55 +329,78 @@ const MainApp = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    // Update these classes to respect dark mode
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-full mx-auto px-2 sm:px-4 lg:px-4 py-8">
         <SearchBar onSearch={(query) => console.log('Search:', query)} />
 
         {selectedAnalysis && (
-          <div className="mb-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* File Explorer */}
-              <div className="md:col-span-1 bg-white rounded-lg shadow">
-                <FileExplorer
-                  files={selectedAnalysis.files}
-                  onFileSelect={handleFileSelect}
-                />
+          <div className="mb-8 relative pt-4">
+            <div className="grid grid-cols-12 gap-4">
+              {/* File Explorer - update with dark mode classes */}
+              <div className="col-span-12 md:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow p-4 overflow-hidden h-full">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Files</h3>
+                <FileExplorer files={selectedAnalysis.files} onFileSelect={handleFileSelect} />
               </div>
 
-              {/* File Viewer */}
-              <div className="md:col-span-1 bg-white rounded-lg shadow">
+              {/* File Viewer - update with dark mode classes */}
+              <div
+                className={`transition-all duration-300 bg-white dark:bg-gray-800 rounded-lg shadow ${isAnalysisCollapsed ? 'col-span-10' : 'col-span-6'
+                  } h-full`}
+              >
                 {selectedFile && (
-                  <FileViewerWithAnalysis files={[selectedFile]} />
+                  <FileViewerWithAnalysis
+                    files={[selectedFile]}
+                    onContentUpdate={handleContentUpdate}
+                    onCustomAnalysis={handleCustomAnalysis}
+                  />
                 )}
               </div>
 
-              {/* Analysis Details */}
-              <div className="md:col-span-1 bg-white rounded-lg shadow">
-                <AnalysisDetails analysis={selectedAnalysis} />
-                {/* <AnalysisResults results={selectedAnalysis.results} /> */}
-              </div>
+              {/* Analysis Details Sidebar - update with dark mode classes */}
+              {!isAnalysisCollapsed && (
+                <div className="transition-all duration-300 col-span-4 bg-white dark:bg-gray-800 rounded-lg shadow h-full relative">
+                  <div className="h-full overflow-y-auto p-4">
+                    <AnalysisDetails analysis={selectedAnalysis} />
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Toggle Button - update with dark mode classes */}
+            <button
+              onClick={toggleAnalysisCollapse}
+              className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white dark:bg-gray-800 p-2 rounded-lg shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 z-10"
+              aria-label={isAnalysisCollapsed ? 'Expand Analysis' : 'Collapse Analysis'}
+            >
+              {isAnalysisCollapsed ? (
+                <ChevronLeftIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+              ) : (
+                <ChevronRightIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+              )}
+            </button>
           </div>
         )}
 
-
-
-        {/* Repository Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
-          {Array.isArray(repositories) && repositories.map((repo) => (
-            <RepositoryCard
-              key={repo.id}
-              repo={{
-                name: repo.name,
-                description: repo.description || '',
-                stars: repo.stargazers_count,
-                default_branch: repo.default_branch,
-                full_name: `${repo.owner.login}/${repo.name}`
-              }}
-              onSelect={handleAnalysisSelect}
-            />
-          ))}
+        {/* Repository Grid - update with dark mode classes */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8 h-full">
+          {Array.isArray(repositories) &&
+            repositories.map((repo) => (
+              <div key={repo.id} className="h-full">
+                <RepositoryCard
+                  repo={{
+                    name: repo.name,
+                    description: repo.description || '',
+                    stars: repo.stargazers_count,
+                    default_branch: repo.default_branch,
+                    full_name: `${repo.owner.login}/${repo.name}`
+                  }}
+                  onSelect={handleAnalysisSelect}
+                  onKTSelect={handleKTSelect}
+                />
+              </div>
+            ))}
         </div>
       </main>
     </div>

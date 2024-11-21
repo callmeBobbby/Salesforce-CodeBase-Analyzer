@@ -1,6 +1,5 @@
 import React from 'react';
 import { File, Folder } from 'lucide-react';
-import axios from 'axios';
 
 interface FileNode {
   name: string;
@@ -11,13 +10,12 @@ interface FileNode {
 
 interface FileExplorerProps {
   files: FileNode[];
-  onFileSelect: (file: { name: string; path: string }) => void; // Updated to pass path
+  onFileSelect: (file: { name: string; path: string }) => void;
 }
 
 export const FileExplorer = ({ files, onFileSelect }: FileExplorerProps) => {
   const handleFileClick = async (file: FileNode) => {
     if (file.type === 'file') {
-      // Call onFileSelect with name and path
       onFileSelect({ name: file.name, path: file.path });
     }
   };
@@ -30,7 +28,12 @@ export const FileExplorer = ({ files, onFileSelect }: FileExplorerProps) => {
         ) : (
           <File className="h-4 w-4 text-gray-400" />
         )}
-        <span className="ml-2 text-sm text-gray-700">{node.name}</span>
+        <span
+          title={node.name} // Show full name on hover
+          className="ml-2 text-sm text-gray-700 truncate max-w-xs" // Truncate long names with ellipsis
+        >
+          {node.name}
+        </span>
       </div>
       {node.children && (
         <div className="pl-4">
@@ -41,8 +44,8 @@ export const FileExplorer = ({ files, onFileSelect }: FileExplorerProps) => {
   );
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Files</h3>
+    <div >
+      {/* <h3 className="text-lg font-semibold text-gray-900 mb-4">Files</h3> */}
       {files.map((file) => renderNode(file))}
     </div>
   );
