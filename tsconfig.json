@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",                    
+    "module": "NodeNext",                   // Change this to NodeNext
+    "moduleResolution": "NodeNext",        
+    "esModuleInterop": true,                
+    "skipLibCheck": true,                  
+    "forceConsistentCasingInFileNames": true, 
+    "strict": true,                         
+    "outDir": "./dist",                    
+    "rootDir": "./src",                    
+    "resolveJsonModule": true               
+  },
+  "include": [
+    "src/**/*"                              
+  ],
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}
