@@ -3,10 +3,10 @@ import { Github as GithubIcon } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
 
-interface User {
-  avatar_url: string;
-  login: string;
-}
+// interface User {
+//   avatar_url: string;
+//   login: string;
+// }
 
 export const Header = () => {
   const { logout, user } = useAuthStore();

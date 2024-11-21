@@ -1,9 +1,24 @@
 import React, { useState, useEffect } from 'react';
 
+interface CustomAnalysisResult {
+    analysis: string;
+    salesforceData?: {
+        type: string;
+        data: {
+            records?: Array<Record<string, unknown>>;
+            [key: string]: unknown;
+        };
+    }[];
+}
+
 interface FileViewerWithAnalysisProps {
-    files: { name: string; content: string; analysis: string }[];
+    files: {
+        name: string;
+        content: string;
+        analysis: string
+    }[];
     onContentUpdate?: (fileName: string, newContent: string) => void;
-    onCustomAnalysis: (fileName: string, prompt: string) => Promise<any>;
+    onCustomAnalysis: (fileName: string, prompt: string) => Promise<CustomAnalysisResult>;
 }
 
 export const FileViewerWithAnalysis: React.FC<FileViewerWithAnalysisProps> = ({
@@ -25,6 +40,7 @@ export const FileViewerWithAnalysis: React.FC<FileViewerWithAnalysisProps> = ({
     }, [files]);
 
     const handleCustomAnalysis = async (e: React.KeyboardEvent | React.MouseEvent) => {
+        e.preventDefault();
         if (customPrompt.trim() === '') return;
 
         setIsLoading(true);

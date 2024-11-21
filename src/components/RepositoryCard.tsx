@@ -12,6 +12,64 @@ import useAuthStore from '../store/authStore';
 //   };
 //   onSelect: (analysis: any) => void;
 // }
+
+interface AnalysisResult {
+  repository: string;
+  overview: string;
+  analyses: Array<{
+    fileName: string;
+    fileType: string;
+    analysis: string;
+  }>;
+  timestamp: string;
+}
+
+interface KnowledgeTransferData {
+  ktAnalysis: {
+    codebase: {
+      structure: Record<string, unknown>;
+      patterns: string[];
+      conventions: string[];
+    };
+    onboarding: {
+      quickStart: string[];
+      commonTasks: string[];
+      troubleshooting: string[];
+    };
+    technical: {
+      architecture: Record<string, unknown>;
+      dependencies: string[];
+      integrations: string[];
+    };
+    business: {
+      processes: string[];
+      rules: string[];
+      domains: string[];
+    };
+  };
+  documentation: {
+    setup: {
+      environment: string[];
+      dependencies: string[];
+      configurations: string[];
+    };
+    workflows: {
+      development: string[];
+      testing: string[];
+      deployment: string[];
+    };
+    architecture: {
+      components: string[];
+      integrations: string[];
+      dataFlow: string[];
+    };
+    businessLogic: {
+      processes: string[];
+      rules: string[];
+      validations: string[];
+    };
+  };
+}
 interface RepositoryCardProps {
   repo: {
     name: string;
@@ -20,8 +78,8 @@ interface RepositoryCardProps {
     stars: number;
     default_branch: string;
   };
-  onSelect: (analysis: any) => void;
-  onKTSelect: (ktData: any) => void;
+  onSelect: (analysis: AnalysisResult) => void;
+  onKTSelect: (ktData: KnowledgeTransferData) => void;
 }
 
 export function RepositoryCard({ repo, onSelect }: RepositoryCardProps) {

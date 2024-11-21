@@ -3,12 +3,12 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Header } from './components/Header';
 import { SearchBar } from './components/SearchBar';
 import { RepositoryCard } from './components/RepositoryCard';
-import { AnalysisResults } from './components/AnalysisResults';
+// import { AnalysisResults } from './components/AnalysisResults';
 import { FileExplorer } from './components/FileExplorer';
 import { GithubLogin } from './components/GithubLogin';
 import { Callback } from './components/Callback';
 import useAuthStore from './store/authStore';
-import { useAnalysisStore } from './store/analysisStore';
+// import { useAnalysisStore } from './store/analysisStore';
 import { CodeReview, CodeExplanation, DetectedIssue } from './components/AnalysisDetails';
 import { AnalysisDetails } from './components/AnalysisDetails';
 import { Analysis } from './components/AnalysisResults';
@@ -36,6 +36,32 @@ interface FileNode {
   children?: FileNode[];
 }
 
+interface AnalysisItem {
+  fileName: string;
+  analysis: string;
+  fileType: string;
+}
+
+interface AnalysisData {
+  repository: string;
+  analyses: AnalysisItem[];
+  overview: string;
+}
+
+interface KTData {
+  analyses: Array<{
+    fileName: string;
+    analysis: string;
+    fileType: string;
+  }>;
+  repository: string;
+  documentation: {
+    generatedDocs: string;
+  };
+}
+
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface RepoType {
   branches: string[];
   id: number;
@@ -129,13 +155,13 @@ const MainApp = () => {
     setIsAnalysisCollapsed(!isAnalysisCollapsed);
   };
 
-  const handleAnalysisSelect = async (analysis: any) => {
+  const handleAnalysisSelect = async (analysis: AnalysisData) => {
     try {
       console.log('Received analysis:', analysis); // Add logging
       setSelectedAnalysis(null);
       setSelectedFile(null);
 
-      const formattedFiles: FileNode[] = analysis.analyses.map((item: any) => ({
+      const formattedFiles: FileNode[] = analysis.analyses.map((item: AnalysisItem) => ({
         name: item.fileName,
         type: 'file',
         path: `${analysis.repository}/${item.fileName}`,
@@ -143,14 +169,14 @@ const MainApp = () => {
 
       // First set the analysis
       setSelectedAnalysis({
-        results: analysis.analyses.map((item: any) => ({
+        results: analysis.analyses.map((item: AnalysisItem) => ({
           type: 'success',
           message: item.analysis,
           file: item.fileName
         })),
         files: formattedFiles,
         codeReview: {
-          issues: analysis.analyses.map((item: any) => ({
+          issues: analysis.analyses.map((item: AnalysisItem) => ({
             severity: 'medium',
             file: item.fileName,
             description: item.analysis,
@@ -159,12 +185,12 @@ const MainApp = () => {
         },
         codeExplanation: {
           summary: analysis.overview,
-          keyComponents: analysis.analyses.map((item: any) => ({
+          keyComponents: analysis.analyses.map((item: AnalysisItem) => ({
             name: item.fileName,
             purpose: `Analysis of ${item.fileType} file`
           }))
         },
-        issues: analysis.analyses.map((item: any) => ({
+        issues: analysis.analyses.map((item: AnalysisItem) => ({
           type: 'improvement',
           description: item.analysis,
           solution: '',
@@ -187,28 +213,29 @@ const MainApp = () => {
   };
 
 
-  const [ktDocumentation, setKTDocumentation] = useState(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [ktDocumentation, setKTDocumentation] = useState<{ generatedDocs: string } | null>(null);
 
-  const handleKTSelect = (ktData: any) => {
+  const handleKTSelect = (ktData: KTData) => {
     try {
       setSelectedAnalysis(null);
       setSelectedFile(null);
 
-      const formattedFiles: FileNode[] = ktData.analyses.map((item: any) => ({
+      const formattedFiles: FileNode[] = ktData.analyses.map((item: AnalysisItem) => ({
         name: item.fileName,
         type: 'file',
         path: `${ktData.repository}/${item.fileName}`,
       }));
 
       setSelectedAnalysis({
-        results: ktData.analyses.map((item: any) => ({
+        results: ktData.analyses.map((item: AnalysisItem) => ({
           type: 'success',
           message: item.analysis,
           file: item.fileName
         })),
         files: formattedFiles,
         codeReview: {
-          issues: ktData.analyses.map((item: any) => ({
+          issues: ktData.analyses.map((item: AnalysisItem) => ({
             severity: 'medium',
             file: item.fileName,
             description: item.analysis,
@@ -217,12 +244,12 @@ const MainApp = () => {
         },
         codeExplanation: {
           summary: ktData.documentation.generatedDocs,
-          keyComponents: ktData.analyses.map((item: any) => ({
+          keyComponents: ktData.analyses.map((item: AnalysisItem) => ({
             name: item.fileName,
             purpose: `Analysis of ${item.fileType} file`
           }))
         },
-        issues: ktData.analyses.map((item: any) => ({
+        issues: ktData.analyses.map((item: AnalysisItem) => ({
           type: 'improvement',
           description: item.analysis,
           solution: '',
@@ -299,6 +326,7 @@ const MainApp = () => {
 
 
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleContentUpdate = async (fileName: string, newContent: string) => {
     // Here you could add logic to save the updated content
     console.log(`Updating content for ${fileName}`);
