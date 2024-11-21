@@ -14,6 +14,8 @@ import { AnalysisDetails } from './components/AnalysisDetails';
 import { Analysis } from './components/AnalysisResults';
 import { FileViewerWithAnalysis } from './components/FileViewerWithAnalysis';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { Settings } from './components/Setting';
+import { SalesforceCallback } from './components/SalesforceCallback';
 
 
 interface GitHubRepository {
@@ -52,7 +54,9 @@ export const App = () => {
     <Router>
       <Routes>
         <Route path="/callback" element={<Callback />} />
+        <Route path="/salesforce/callback" element={<SalesforceCallback />} />
         <Route path="/" element={<MainApp />} />
+        <Route path="/settings" element={<Settings />} /> {/* Add this route */}
       </Routes>
     </Router>
   );
@@ -325,23 +329,25 @@ const MainApp = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    // Update these classes to respect dark mode
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header />
       <main className="max-w-full mx-auto px-2 sm:px-4 lg:px-4 py-8">
         <SearchBar onSearch={(query) => console.log('Search:', query)} />
 
         {selectedAnalysis && (
-          <div className="mb-8 relative">
+          <div className="mb-8 relative pt-4">
             <div className="grid grid-cols-12 gap-4">
-              {/* File Explorer */}
-              <div className="col-span-12 md:col-span-2 bg-white rounded-lg shadow p-4 overflow-hidden h-full">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Files</h3>
+              {/* File Explorer - update with dark mode classes */}
+              <div className="col-span-12 md:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow p-4 overflow-hidden h-full">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Files</h3>
                 <FileExplorer files={selectedAnalysis.files} onFileSelect={handleFileSelect} />
               </div>
 
-              {/* File Viewer */}
+              {/* File Viewer - update with dark mode classes */}
               <div
-                className={`transition-all duration-300 bg-white rounded-lg shadow ${isAnalysisCollapsed ? 'col-span-10' : 'col-span-6'} h-full`}
+                className={`transition-all duration-300 bg-white dark:bg-gray-800 rounded-lg shadow ${isAnalysisCollapsed ? 'col-span-10' : 'col-span-6'
+                  } h-full`}
               >
                 {selectedFile && (
                   <FileViewerWithAnalysis
@@ -352,43 +358,37 @@ const MainApp = () => {
                 )}
               </div>
 
-              {/* Analysis Details Sidebar */}
+              {/* Analysis Details Sidebar - update with dark mode classes */}
               {!isAnalysisCollapsed && (
-                <div
-                  className="transition-all duration-300 col-span-4 bg-white rounded-lg shadow h-full relative"
-                >
+                <div className="transition-all duration-300 col-span-4 bg-white dark:bg-gray-800 rounded-lg shadow h-full relative">
                   <div className="h-full overflow-y-auto p-4">
-                    {/* <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-lg font-semibold">Analysis Details</h3>
-                    </div> */}
                     <AnalysisDetails analysis={selectedAnalysis} />
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Toggle Button Fixed to the Right */}
+            {/* Toggle Button - update with dark mode classes */}
             <button
               onClick={toggleAnalysisCollapse}
-              className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white p-2 rounded-lg shadow-lg hover:bg-gray-100 z-10"
+              className="fixed right-4 top-1/2 transform -translate-y-1/2 bg-white dark:bg-gray-800 p-2 rounded-lg shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 z-10"
               aria-label={isAnalysisCollapsed ? 'Expand Analysis' : 'Collapse Analysis'}
             >
               {isAnalysisCollapsed ? (
-                <ChevronLeftIcon className="h-6 w-6 text-gray-600" />
+                <ChevronLeftIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
               ) : (
-                <ChevronRightIcon className="h-6 w-6 text-gray-600" />
+                <ChevronRightIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
               )}
             </button>
           </div>
         )}
 
-        {/* Repository Grid */}
+        {/* Repository Grid - update with dark mode classes */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8 h-full">
           {Array.isArray(repositories) &&
             repositories.map((repo) => (
-              <div className="h-full">
+              <div key={repo.id} className="h-full">
                 <RepositoryCard
-                  key={repo.id}
                   repo={{
                     name: repo.name,
                     description: repo.description || '',
@@ -405,10 +405,5 @@ const MainApp = () => {
       </main>
     </div>
   );
-
-
-
-
-
-
 };
+

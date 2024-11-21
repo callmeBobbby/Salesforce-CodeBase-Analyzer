@@ -34,9 +34,10 @@ export const FileViewerWithAnalysis: React.FC<FileViewerWithAnalysisProps> = ({
             if (result) {
                 setSelectedFile(prev => ({
                     ...prev!,
-                    analysis: result.analysis || result // handle both result formats
+                    analysis: `Analysis Result:\n${result.analysis}\n\nSalesforce Data:\n${JSON.stringify(result.salesforceData, null, 2)
+                        }`
                 }));
-                setCustomPrompt(''); // Clear input after successful analysis
+                setCustomPrompt('');
             }
         } catch (error) {
             console.error('Error during custom analysis:', error);
@@ -44,6 +45,7 @@ export const FileViewerWithAnalysis: React.FC<FileViewerWithAnalysisProps> = ({
             setIsLoading(false);
         }
     };
+
 
 
     const handleContentUpdate = () => {
